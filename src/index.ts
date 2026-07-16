@@ -22,6 +22,9 @@ import { chatCompletionsHandler } from './handlers/chatCompletionsHandler';
 import { completionsHandler } from './handlers/completionsHandler';
 import { embeddingsHandler } from './handlers/embeddingsHandler';
 import { logHandler } from './middlewares/log';
+// >>> ROUNDBOX ADDITION — spend attribution (see src/middlewares/spend/README.md)
+import { spendAttributionHandler } from './middlewares/spend';
+// <<< ROUNDBOX ADDITION
 import { imageGenerationsHandler } from './handlers/imageGenerationsHandler';
 import { createSpeechHandler } from './handlers/createSpeechHandler';
 import { createTranscriptionHandler } from './handlers/createTranscriptionHandler';
@@ -98,6 +101,11 @@ app.use('*', prettyJSON());
 if (getRuntimeKey() === 'node') {
   app.use(logHandler());
 }
+
+// >>> ROUNDBOX ADDITION — attribute + durably enqueue billable usage per request.
+// Mounted before route handlers so it wraps every /v1 call; non-blocking.
+app.use('*', spendAttributionHandler());
+// <<< ROUNDBOX ADDITION
 
 // Support the /v1/models endpoint
 app.get('/v1/models', modelsHandler);

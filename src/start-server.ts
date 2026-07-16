@@ -160,6 +160,12 @@ app.get(
   upgradeWebSocket(realTimeHandlerNode)
 );
 
+// >>> ROUNDBOX ADDITION — start the BullMQ worker that delivers attributed
+// usage events to BlackGate's metering webhook (retry/backoff; no loss).
+import { startSpendWorker } from './middlewares/spend/worker';
+startSpendWorker();
+// <<< ROUNDBOX ADDITION
+
 const server = serve({
   fetch: app.fetch,
   port: port,
