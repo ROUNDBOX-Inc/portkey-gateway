@@ -25,6 +25,10 @@ import { logHandler } from './middlewares/log';
 // >>> ROUNDBOX ADDITION — spend attribution (see src/middlewares/spend/README.md)
 import { spendAttributionHandler } from './middlewares/spend';
 // <<< ROUNDBOX ADDITION
+// >>> ROUNDBOX ADDITION — diagnostics live-log ring + Bearer /internal/logs
+// (see src/middlewares/diag, design doc §4.2)
+import { registerDiag } from './middlewares/diag';
+// <<< ROUNDBOX ADDITION
 import { imageGenerationsHandler } from './handlers/imageGenerationsHandler';
 import { createSpeechHandler } from './handlers/createSpeechHandler';
 import { createTranscriptionHandler } from './handlers/createTranscriptionHandler';
@@ -93,6 +97,13 @@ if (runtime === 'node') {
  * Returns a greeting message.
  */
 app.get('/', (c) => c.text('AI Gateway says hey!'));
+
+// >>> ROUNDBOX ADDITION — diagnostics live-log ring (design doc §4.2).
+// Always mounted (unlike upstream's dev/headless-only /log/stream) — the
+// routes self-disable (404) when RBX_INTERNAL_TOKEN is unset, so this is
+// safe in every environment/runtime.
+registerDiag(app);
+// <<< ROUNDBOX ADDITION
 
 // Use prettyJSON middleware for all routes
 app.use('*', prettyJSON());

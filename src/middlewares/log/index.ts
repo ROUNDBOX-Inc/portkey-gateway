@@ -1,5 +1,9 @@
 import { Context } from 'hono';
 import { getRuntimeKey } from 'hono/adapter';
+// >>> ROUNDBOX ADDITION — feed /v1 access-log records into the diagnostics
+// ring (see src/middlewares/diag). Diag has no dependency back on this file.
+import { logToRing } from '../diag';
+// <<< ROUNDBOX ADDITION
 
 let logId = 0;
 const MAX_RESPONSE_LENGTH = 100000;
@@ -144,6 +148,22 @@ async function processLog(c: Context, start: number) {
       requestOptions: requestOptionsArray.map(sanitizeRequestOption),
     })
   );
+
+  // >>> ROUNDBOX ADDITION — mirror this access-log record into the
+  // diagnostics ring (design doc §4.2) so /v1 traffic shows up in the
+  // Diagnostics live-log viewer alongside app console output. Best-effort
+  // only — must never affect the access-log hot path.
+  try {
+    logToRing({
+      ts: Date.now(),
+      level: c.res.status >= 500 ? 'error' : 'info',
+      context: 'access',
+      message: `${c.req.method} ${c.req.url.split(':8787')[1] ?? c.req.url} ${c.res.status} ${ms}ms`,
+    });
+  } catch {
+    // swallow — diagnostics capture is best-effort only.
+  }
+  // <<< ROUNDBOX ADDITION
 }
 
 export const logHandler = () => {

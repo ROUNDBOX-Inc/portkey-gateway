@@ -166,6 +166,16 @@ import { startSpendWorker } from './middlewares/spend/worker';
 startSpendWorker();
 // <<< ROUNDBOX ADDITION
 
+// >>> ROUNDBOX ADDITION — wire console capture into the diagnostics ring
+// (design doc §4.2). The /internal/logs + /internal/logs/stream routes
+// themselves are mounted unconditionally in src/index.ts (registerDiag), so
+// they're active for both this Node entrypoint and the workerd/wrangler
+// build; console capture only applies to this Node process (the actual
+// ROUNDBOX container deploy target).
+import { startDiag } from './middlewares/diag';
+startDiag();
+// <<< ROUNDBOX ADDITION
+
 const server = serve({
   fetch: app.fetch,
   port: port,
