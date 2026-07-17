@@ -20,6 +20,9 @@ export function startSpendWorker(): void {
     async (job) => deliverUsage(job.data),
     {
       connection,
+      // Same hash-tag prefix as the producing Queue (config.queuePrefix) — must
+      // match or the worker watches a different key set. Clustered-AMR safe.
+      prefix: cfg.queuePrefix,
     }
   );
   worker.on('failed', (job, err) => {

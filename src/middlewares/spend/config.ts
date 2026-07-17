@@ -9,6 +9,7 @@ export interface SpendConfig {
   webhookUrl: string;
   webhookSecret: string;
   queueName: string;
+  queuePrefix: string;
   maxAttempts: number;
   backoffMs: number;
   logBackstop: boolean;
@@ -29,6 +30,11 @@ export function loadSpendConfig(): SpendConfig {
     webhookUrl,
     webhookSecret: process.env.RBX_SPEND_WEBHOOK_SECRET ?? '',
     queueName: process.env.RBX_SPEND_QUEUE ?? 'roundbox-spend',
+    // BullMQ key prefix wrapped in a Redis hash-tag so EVERY key for this queue
+    // hashes to ONE cluster slot. Required on the clustered Azure Managed Redis
+    // (Balanced tier is clustered) — without it, multi-key BullMQ ops fail with
+    // CROSSSLOT. Matches the gateway outbox's {bg} tag. Override per deployment.
+    queuePrefix: process.env.RBX_SPEND_QUEUE_PREFIX ?? '{bg}',
     maxAttempts: Number(process.env.RBX_SPEND_MAX_ATTEMPTS ?? '25'),
     backoffMs: Number(process.env.RBX_SPEND_BACKOFF_MS ?? '5000'),
     logBackstop: (process.env.RBX_SPEND_LOG ?? 'true') === 'true',

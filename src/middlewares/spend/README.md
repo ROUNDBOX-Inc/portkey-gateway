@@ -30,6 +30,7 @@ dedupes on `requestId`); the gateway only attributes + emits.
 | `RBX_SPEND_WEBHOOK_SECRET` | — | HMAC-SHA256 signing secret (`x-roundbox-signature`) |
 | `RBX_SPEND_REDIS_URL` / `REDIS_URL` | `redis://localhost:6379` | BullMQ Redis |
 | `RBX_SPEND_QUEUE` | `roundbox-spend` | Queue name |
+| `RBX_SPEND_QUEUE_PREFIX` | `{bg}` | BullMQ key prefix; the `{…}` hash-tag pins all keys to one cluster slot (required on clustered Redis, else CROSSSLOT) |
 | `RBX_SPEND_MAX_ATTEMPTS` | `25` | Delivery attempts before dead-letter |
 | `RBX_SPEND_BACKOFF_MS` | `5000` | Exponential backoff base |
 | `RBX_SPEND_LOG` | `true` | Structured stdout backstop |

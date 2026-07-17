@@ -14,7 +14,9 @@ function getQueue(): Queue {
   if (queue) return queue;
   const cfg = loadSpendConfig();
   const connection = new IORedis(cfg.redisUrl, { maxRetriesPerRequest: null });
-  queue = new Queue(cfg.queueName, { connection });
+  // prefix carries a Redis hash-tag ({bg}) so all keys share one cluster slot
+  // (clustered AMR → otherwise CROSSSLOT). Worker MUST use the same prefix.
+  queue = new Queue(cfg.queueName, { connection, prefix: cfg.queuePrefix });
   return queue;
 }
 
