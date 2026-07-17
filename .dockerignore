@@ -1,2 +1,9 @@
-.toml
+# Build context excludes — deps + prior build are regenerated inside the image.
+node_modules
+build
+.git
+.github
 docs
+cookbook
+tests
+*.toml
