@@ -1,7 +1,9 @@
 // >>> ROUNDBOX ADDITION — unit tests for the diagnostics ring + auth guard.
 import { Hono } from 'hono';
-import { LogRing } from './ring';
-import { checkAuth, registerDiag } from './index';
+import { LogRing, diagRing } from './ring';
+import { captureConsole, checkAuth, registerDiag } from './index';
+import { scrubArgsForRing } from './redact';
+import { loadDiagConfig } from './config';
 
 describe('LogRing', () => {
   it('stores pushed entries in push order and returns them via snapshot()', () => {
@@ -144,5 +146,92 @@ describe('GET /internal/logs and /internal/logs/stream', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { logs: Array<{ level: string }> };
     expect(body.logs.every((e) => e.level === 'error')).toBe(true);
+  });
+});
+
+describe('credential redaction (scrubArgsForRing)', () => {
+  it('redacts sensitive object keys (authorization) recursively', () => {
+    const out = scrubArgsForRing([
+      'fail',
+      { headers: { authorization: 'Bearer sk-secret123' } },
+    ]);
+    expect(out).toContain('[REDACTED]');
+    expect(out).not.toContain('sk-secret123');
+  });
+
+  it('redacts api-key / apikey / x-api-key / x-portkey-* keys (case-insensitive)', () => {
+    const out = scrubArgsForRing([
+      {
+        'API-Key': 'sk-abc',
+        apiKey: 'sk-def',
+        'X-Api-Key': 'sk-ghi',
+        'x-portkey-provider': 'openai',
+        'X-Portkey-Api-Key': 'sk-jkl',
+      },
+    ]);
+    expect(out).not.toContain('sk-abc');
+    expect(out).not.toContain('sk-def');
+    expect(out).not.toContain('sk-ghi');
+    expect(out).not.toContain('sk-jkl');
+    // A non-sensitive x-portkey-* value is still redacted (prefix rule).
+    expect(out).not.toContain('openai');
+  });
+
+  it('masks Bearer <token> substrings in a plain string arg', () => {
+    const out = scrubArgsForRing(['auth header was Bearer sk-secret123 today']);
+    expect(out).toContain('Bearer [REDACTED]');
+    expect(out).not.toContain('sk-secret123');
+  });
+
+  it('masks standalone sk-/obg- tokens in a plain string arg', () => {
+    const out = scrubArgsForRing(['key sk-liveABCDEF and obg_prodXYZ123']);
+    expect(out).not.toContain('sk-liveABCDEF');
+    expect(out).not.toContain('obg_prodXYZ123');
+    expect(out).toContain('[REDACTED]');
+  });
+});
+
+describe('captureConsole → ring redaction (end to end)', () => {
+  it('never lets a secret reach the ring via console capture', () => {
+    captureConsole(); // idempotent; patches console.* to also feed diagRing
+    const before = diagRing.snapshot().length;
+
+    console.error('fail', {
+      headers: { authorization: 'Bearer sk-secret123' },
+    });
+
+    const added = diagRing.snapshot().slice(before);
+    const combined = added.map((e) => e.message).join('\n');
+    expect(combined).toContain('[REDACTED]');
+    expect(combined).not.toContain('sk-secret123');
+  });
+});
+
+describe('loadDiagConfig maxBytes NaN guard', () => {
+  const ORIGINAL = process.env.RBX_DIAG_MAX_BYTES;
+  const DEFAULT = 10 * 1024 * 1024;
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.RBX_DIAG_MAX_BYTES;
+    else process.env.RBX_DIAG_MAX_BYTES = ORIGINAL;
+  });
+
+  it('falls back to the 10MB default on a non-numeric value', () => {
+    process.env.RBX_DIAG_MAX_BYTES = 'not-a-number';
+    expect(loadDiagConfig().maxBytes).toBe(DEFAULT);
+  });
+
+  it('falls back to the default on zero/negative/empty', () => {
+    process.env.RBX_DIAG_MAX_BYTES = '0';
+    expect(loadDiagConfig().maxBytes).toBe(DEFAULT);
+    process.env.RBX_DIAG_MAX_BYTES = '-5';
+    expect(loadDiagConfig().maxBytes).toBe(DEFAULT);
+    process.env.RBX_DIAG_MAX_BYTES = '';
+    expect(loadDiagConfig().maxBytes).toBe(DEFAULT);
+  });
+
+  it('honors a valid positive value', () => {
+    process.env.RBX_DIAG_MAX_BYTES = '2048';
+    expect(loadDiagConfig().maxBytes).toBe(2048);
   });
 });

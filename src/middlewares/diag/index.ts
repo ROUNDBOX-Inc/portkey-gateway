@@ -23,6 +23,7 @@ import type { Context, Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { timingSafeEqual } from 'node:crypto';
 import { loadDiagConfig } from './config';
+import { scrubArgsForRing } from './redact';
 import { diagRing, type LogEntry, type LogLevel } from './ring';
 
 const LEVELS: readonly LogLevel[] = ['debug', 'info', 'warn', 'error'];
@@ -50,32 +51,20 @@ const originalConsole = {
   error: console.error.bind(console),
 };
 
-function stringifyArgs(args: unknown[]): string {
-  return args
-    .map((a) => {
-      if (typeof a === 'string') return a;
-      if (a instanceof Error) return a.stack ?? a.message;
-      try {
-        const json = JSON.stringify(a);
-        return json !== undefined ? json : String(a);
-      } catch {
-        return String(a);
-      }
-    })
-    .join(' ');
-}
-
 function wrap(
   level: LogLevel,
   original: (...args: unknown[]) => void
 ): (...args: unknown[]) => void {
   return (...args: unknown[]) => {
     original(...args);
+    // scrubArgsForRing redacts credentials (sensitive object keys + Bearer/
+    // sk-/obg- tokens) BEFORE anything enters the ring — the ring must never
+    // hold a secret even if some upstream code logs one.
     logToRing({
       ts: Date.now(),
       level,
       context: 'console',
-      message: stringifyArgs(args),
+      message: scrubArgsForRing(args),
     });
   };
 }

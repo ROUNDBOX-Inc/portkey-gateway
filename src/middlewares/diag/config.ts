@@ -18,11 +18,15 @@ const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 // RBX_INTERNAL_TOKEN without reloading the module.
 export function loadDiagConfig(): DiagConfig {
   const token = process.env.RBX_INTERNAL_TOKEN ?? '';
+  // Guard against a bad RBX_DIAG_MAX_BYTES: Number('foo') / Number('') is NaN,
+  // and NaN would make the ring's `totalBytes > maxBytes` eviction check always
+  // false → an unbounded, ever-growing ring. Fall back to the default on any
+  // non-finite or non-positive value.
+  const n = Number(process.env.RBX_DIAG_MAX_BYTES);
+  const maxBytes = Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_BYTES;
   return {
     enabled: token.length > 0,
     token,
-    maxBytes: Number(
-      process.env.RBX_DIAG_MAX_BYTES ?? String(DEFAULT_MAX_BYTES)
-    ),
+    maxBytes,
   };
 }
